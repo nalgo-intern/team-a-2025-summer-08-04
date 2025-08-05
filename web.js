@@ -2,25 +2,27 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 let drawing = false;
-canvas.onmousedown = () => drawing = true;
-canvas.onmouseup = () => drawing = false;
 let lastX, lastY;
-canvas.onmousedown = e => {   //ベジェ曲線滑らかさ
+let initialCanvasData; // ← 初期状態の保存用
+
+// マウス押下時に描画開始＋位置記録
+canvas.onmousedown = e => {
   drawing = true;
   const rect = canvas.getBoundingClientRect();
   lastX = e.clientX - rect.left;
   lastY = e.clientY - rect.top;
 };
+
+// マウス移動でグラデーション付きの線を描く
 canvas.onmousemove = e => {
   if (!drawing) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  // グラデーション作成
   const gradient = ctx.createRadialGradient(x, y, 1, x, y, 10);
-  gradient.addColorStop(0, "rgba(0, 0, 0, 1)");   // 中心は黒く濃い
-  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");   // 外側は透明に
+  gradient.addColorStop(0, "rgba(0, 0, 0, 1)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
 
   ctx.fillStyle = gradient;
   ctx.beginPath();
@@ -28,37 +30,54 @@ canvas.onmousemove = e => {
   ctx.fill();
 };
 
-function drawCenterLine() {       //縦線描画
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
+// マウスを離したとき描画停止
+canvas.onmouseup = () => drawing = false;
 
+// 中央線を描く
+function drawCenterLine() {
   const centerX = canvas.width / 2;
-
   ctx.beginPath();
-  ctx.moveTo(centerX, 0);             // 上から
-  ctx.lineTo(centerX, canvas.height); // 下まで
-  ctx.strokeStyle = "gray";           // 線の色
-  ctx.lineWidth = 2;                  // 線の太さ
+  ctx.moveTo(centerX, 0);
+  ctx.lineTo(centerX, canvas.height);
+  ctx.strokeStyle = "gray";
+  ctx.lineWidth = 2;
   ctx.stroke();
 }
+
+// 初期化時に縦線だけ描いて保存
 window.onload = () => {
-  drawCenterLine(); // ページ読み込み時に線を描画
+  clearCanvas(); // 初期化＋線描画
+  initialCanvasData = canvas.toDataURL("image/png"); // ← 初期状態を保存
 };
 
-
-
+// キャンバスクリア＋縦線再描画
 function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawCenterLine();//再描画
+  drawCenterLine();
 }
 
+// 推論処理
 async function predict() {
   const base64 = canvas.toDataURL("image/png");
+
+  // 初期状態（縦線だけ）の画像と同じなら空白とみなす
+  if (base64 === initialCanvasData) {
+    document.getElementById("result").textContent = "Result: 何も書かれていません";
+    return;
+  }
+
+  // 数字が書かれていた場合 → 一旦「読み込みました」と表示
+  document.getElementById("result").textContent = "読み込みました...";
+
+  // APIに送信
   const res = await fetch("http://localhost:8000/predict", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image: base64 })
   });
+
   const data = await res.json();
+
+  // 結果を表示
   document.getElementById("result").textContent = "Result: " + data.result;
 }
