@@ -1,0 +1,52 @@
+/* 全体のレイアウト調整 */
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+  text-align: center;
+  padding: 40px;
+  margin: 0;
+}
+
+/* 見出しスタイル */
+h2 {
+  margin: 10px 0;
+  color: #222;
+}
+
+/* Canvasスタイル */
+canvas {
+  border: 2px solid #000;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+/* ボタンスタイル */
+button {
+  margin: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* 結果表示 */
+#result {
+  margin-top: 20px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #28a745;
+}
