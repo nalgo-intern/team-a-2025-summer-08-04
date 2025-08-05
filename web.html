@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>2-Digit Classifier</title>
+  <style>
+    canvas {
+      border: 1px solid #000;
+      background-color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <h2>MNIST2桁判別</h2>
+  <h2>2桁数字を書いてください</h2>
+  <canvas id="canvas" width="500" height="280"></canvas><br>
+  <button onclick="clearCanvas()">Clear</button>
+  <button onclick="predict()">Predict</button>
+  <p id="result">Result: ?</p>
+
+  <script src="script.js"></script>
+</body>
+</html>
