@@ -4,7 +4,7 @@ const ctx = canvas.getContext("2d");
 let drawing = false;
 canvas.onmousedown = () => drawing = true;
 canvas.onmouseup = () => drawing = false;
-canvas.onmousemove = e => {
+canvas.onmousemove = e => {    //文字描画
   if (!drawing) return;
   const rect = canvas.getBoundingClientRect();
   ctx.beginPath();
@@ -15,9 +15,28 @@ canvas.onmousemove = e => {
   ctx.fillStyle = "black";
   ctx.fill();
 };
+function drawCenterLine() {       //縦線描画
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const centerX = canvas.width / 2;
+
+  ctx.beginPath();
+  ctx.moveTo(centerX, 0);             // 上から
+  ctx.lineTo(centerX, canvas.height); // 下まで
+  ctx.strokeStyle = "gray";           // 線の色
+  ctx.lineWidth = 2;                  // 線の太さ
+  ctx.stroke();
+}
+window.onload = () => {
+  drawCenterLine(); // ページ読み込み時に線を描画
+};
+
+
 
 function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawCenterLine();//再描画
 }
 
 async function predict() {
