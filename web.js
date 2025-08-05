@@ -19,7 +19,7 @@ canvas.onmousemove = e => {
 
   // グラデーション作成
   const gradient = ctx.createRadialGradient(x, y, 1, x, y, 10);
-  gradient.addColorStop(0, "rgba(0, 0, 0, 0)");   // 中心は黒く濃い
+  gradient.addColorStop(0, "rgba(0, 0, 0, 1)");   // 中心は黒く濃い
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");   // 外側は透明に
 
   ctx.fillStyle = gradient;
