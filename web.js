@@ -4,17 +4,30 @@ const ctx = canvas.getContext("2d");
 let drawing = false;
 canvas.onmousedown = () => drawing = true;
 canvas.onmouseup = () => drawing = false;
-canvas.onmousemove = e => {    //文字描画
+let lastX, lastY;
+canvas.onmousedown = e => {   //ベジェ曲線滑らかさ
+  drawing = true;
+  const rect = canvas.getBoundingClientRect();
+  lastX = e.clientX - rect.left;
+  lastY = e.clientY - rect.top;
+};
+canvas.onmousemove = e => {
   if (!drawing) return;
   const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // グラデーション作成
+  const gradient = ctx.createRadialGradient(x, y, 1, x, y, 10);
+  gradient.addColorStop(0, "rgba(0, 0, 0, 0)");   // 中心は黒く濃い
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");   // 外側は透明に
+
+  ctx.fillStyle = gradient;
   ctx.beginPath();
-  ctx.lineWidth = 20;         // 太さを調整
- ctx.lineJoin = "round";     // 線のつなぎ目を丸く
- ctx.lineCap = "round";      // 線の先端を丸く
-  ctx.arc(e.clientX - rect.left, e.clientY - rect.top, 10, 0, Math.PI * 2);
-  ctx.fillStyle = "black";
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
   ctx.fill();
 };
+
 function drawCenterLine() {       //縦線描画
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
