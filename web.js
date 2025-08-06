@@ -77,57 +77,72 @@ function isCanvasBlankExceptLine(canvas) {
 }
 
 async function predict() {
-  const base64 = canvas.toDataURL("image/png");
+  // Step 1: 描画Canvasの内容を一時Canvasへコピー
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.drawImage(canvas, 0, 0);
 
-  // キャンバスの内容を取得
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-  let hasDrawing = false;
+  // Step 2: 中央線の領域をクリア（線を除去）
   const centerX = canvas.width / 2;
-  const margin = 2; // 縦線の幅より広めに除外（例えば2px）
+  tempCtx.clearRect(centerX - 1, 0, 3, canvas.height);
 
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      // 縦線部分を無視
-      if (x >= centerX - margin && x <= centerX + margin) continue;
+  // Step 3: 28×28に縮小（中間キャンバス）
+  const smallCanvas = document.createElement("canvas");
+  smallCanvas.width = 28;
+  smallCanvas.height = 28;
+  const smallCtx = smallCanvas.getContext("2d");
+  smallCtx.fillStyle = "white";
+  smallCtx.fillRect(0, 0, 28, 28);
+  smallCtx.drawImage(tempCanvas, 0, 0, 28, 28);
 
-      const index = (y * canvas.width + x) * 4;
-      const alpha = imageData[index + 3];
-
-      if (alpha !== 0) {
-        hasDrawing = true;
-        break;
-      }
-    }
-    if (hasDrawing) break;
+  // Step 4: 白黒反転（黒背景・白文字）
+  const imageData = smallCtx.getImageData(0, 0, 28, 28);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    // R, G, Bを255 - 値 にして反転
+    data[i] = 255 - data[i];     // R
+    data[i + 1] = 255 - data[i + 1]; // G
+    data[i + 2] = 255 - data[i + 2]; // B
+    // alpha値（data[i + 3]）はそのまま
   }
+  smallCtx.putImageData(imageData, 0, 0);
 
-  if (!hasDrawing) {
+  // 表示用に確認（任意）
+  const finalBase64 = smallCanvas.toDataURL("image/png");
+
+  // Step 5: 空白チェック（反転後の画像と白画像比較）
+  const blankCanvas = document.createElement("canvas");
+  blankCanvas.width = 28;
+  blankCanvas.height = 28;
+  const blankCtx = blankCanvas.getContext("2d");
+  blankCtx.fillStyle = "black"; // 背景を黒にして比較（反転後と同条件）
+  blankCtx.fillRect(0, 0, 28, 28);
+  const blankBase64 = blankCanvas.toDataURL("image/png");
+
+  if (finalBase64 === blankBase64) {
     document.getElementById("result").textContent = "Result: 何も書かれていません";
     return;
   }
 
-  // 読み込み中表示
   document.getElementById("result").textContent = "読み込み中...";
 
-  // プレビュー表示（任意）
-  document.getElementById("preview").src = base64;
-
+  // Step 6: AIに送信
   try {
     const res = await fetch("http://localhost:8000/predict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: base64 })
+      body: JSON.stringify({ image: finalBase64 })
     });
-
-    if (!res.ok) throw new Error("Fetch error");
 
     const data = await res.json();
 
     if (data.confidence < 0.8) {
       document.getElementById("result").textContent = "Result: 自信がありません。もう一度お願いします。";
     } else {
-      document.getElementById("result").textContent = "Result: " + data.result + "（信頼度: " + Math.round(data.confidence * 100) + "%）";
+      document.getElementById("result").textContent =
+        "Result: " + data.result + "（信頼度: " + Math.round(data.confidence * 100) + "%）";
     }
 
   } catch (err) {
