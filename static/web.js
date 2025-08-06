@@ -75,6 +75,49 @@ function isCanvasBlankExceptLine(canvas) {
   }
   return true; // 縦線以外は空白
 }
+function downloadProcessedImage() {
+  // 1. 表示用 canvas の手書き内容を取得
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  // 2. 中央線を除いた内容を別キャンバスにコピー
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.putImageData(imageData, 0, 0);
+
+  // 中央線を消す（中央+前後1px）
+  const centerX = Math.floor(canvas.width / 2);
+  tempCtx.clearRect(centerX - 1, 0, 3, canvas.height);
+
+  // 3. 28×28のキャンバスを作成して縮小
+  const downsizeCanvas = document.createElement("canvas");
+  downsizeCanvas.width = 28;
+  downsizeCanvas.height = 28;
+  const downsizeCtx = downsizeCanvas.getContext("2d");
+
+  // 解像度を下げて描画
+  downsizeCtx.drawImage(tempCanvas, 0, 0, 28, 28);
+
+  // 4. 白黒反転
+  const imgData = downsizeCtx.getImageData(0, 0, 28, 28);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const r = imgData.data[i];
+    const g = imgData.data[i + 1];
+    const b = imgData.data[i + 2];
+    const avg = (r + g + b) / 3;
+    const inverted = 255 - avg;
+    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = inverted;
+  }
+  downsizeCtx.putImageData(imgData, 0, 0);
+
+  // 5. ダウンロード
+  const link = document.createElement('a');
+  link.download = 'processed_digit.png';
+  link.href = downsizeCanvas.toDataURL('image/png');
+  link.click();
+}
+
 
 async function predict() {
   // Step 1: 描画Canvasの内容を一時Canvasへコピー
