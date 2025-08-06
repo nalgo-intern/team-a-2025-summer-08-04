@@ -22,7 +22,9 @@ def predict():
     processed = preprocess_image(img_str)
     pred = model.predict(processed)
     result = int(pred.argmax())
-    return jsonify({"result": result})
+    confidence = float(pred[0][result])  # 最大信頼度の値を取得（例：0.8764）
+
+    return jsonify({"result": result, "confidence": confidence})
 
 if __name__ == '__main__':
     app.run(debug=True)

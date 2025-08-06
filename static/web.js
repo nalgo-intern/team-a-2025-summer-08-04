@@ -185,7 +185,8 @@ async function predict() {
       document.getElementById("result").textContent = "Result: 自信がありません。もう一度お願いします。";
     } else {
       document.getElementById("result").textContent =
-        "Result: " + data.result + "（信頼度: " + Math.round(data.confidence * 100) + "%）";
+      "Result: " + data.result + "（信頼度: " + (data.confidence * 100).toFixed(2) + "%）";
+
     }
 
   } catch (err) {
