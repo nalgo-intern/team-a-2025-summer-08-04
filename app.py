@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from tensorflow.keras.models import load_model
 
-from double_digits import load_double_data
+from double_digits import preprocess_image
 
 app = Flask(__name__)
 
@@ -19,7 +19,7 @@ def index():
 def predict():
     data = request.get_json()
     img_str = data['image']
-    processed = double_digits.preprocess_image(img_str)
+    processed = preprocess_image(img_str)
     pred = model.predict(processed)
     result = int(pred.argmax())
     return jsonify({"result": result})
