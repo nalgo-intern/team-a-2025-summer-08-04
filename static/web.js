@@ -130,7 +130,7 @@ async function predict() {
 
   // Step 6: AIに送信
   try {
-    const res = await fetch("http://localhost:8000/predict", {
+    const res = await fetch("http://localhost:5000/predict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: finalBase64 })
