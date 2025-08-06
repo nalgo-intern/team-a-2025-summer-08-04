@@ -6,7 +6,7 @@ import nbimporter
 from double_digits import load_double_data
 
 app = Flask(__name__)
-model = load_model('model.h5')  # モデル読み込み(作成したモデルの名前に変更してください)
+model = load_model('trained_model_v1.h5')  # モデル読み込み(作成したモデルの名前に変更してください)
 
 @app.route('/')
 def index():
