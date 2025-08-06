@@ -1,11 +1,10 @@
+// script.js
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 let drawing = false;
 let lastX, lastY;
-let initialCanvasData; // ← 初期状態の保存用
 
-// マウス押下時に描画開始＋位置記録
 canvas.onmousedown = e => {
   drawing = true;
   const rect = canvas.getBoundingClientRect();
@@ -13,7 +12,8 @@ canvas.onmousedown = e => {
   lastY = e.clientY - rect.top;
 };
 
-// マウス移動でグラデーション付きの線を描く
+canvas.onmouseup = () => drawing = false;
+
 canvas.onmousemove = e => {
   if (!drawing) return;
   const rect = canvas.getBoundingClientRect();
@@ -30,10 +30,6 @@ canvas.onmousemove = e => {
   ctx.fill();
 };
 
-// マウスを離したとき描画停止
-canvas.onmouseup = () => drawing = false;
-
-// 中央線を描く
 function drawCenterLine() {
   const centerX = canvas.width / 2;
   ctx.beginPath();
@@ -44,40 +40,98 @@ function drawCenterLine() {
   ctx.stroke();
 }
 
-// 初期化時に縦線だけ描いて保存
 window.onload = () => {
-  clearCanvas(); // 初期化＋線描画
-  initialCanvasData = canvas.toDataURL("image/png"); // ← 初期状態を保存
+  clearCanvas();
 };
 
-// キャンバスクリア＋縦線再描画
 function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawCenterLine();
+  drawCenterLine(); // 再描画
+  document.getElementById("result").textContent = "Result: ?";
 }
 
-// 推論処理
+
+function isCanvasBlankExceptLine(canvas) {
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const centerX = Math.floor(canvas.width / 2);
+  const pixels = imageData.data;
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const idx = (y * canvas.width + x) * 4;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      const a = pixels[idx + 3];
+
+      const isWhite = r === 255 && g === 255 && b === 255 && a === 255;
+      const isCenterLine = (x === centerX || x === centerX - 1 || x === centerX + 1) && r === 128 && g === 128 && b === 128;
+
+      if (!isWhite && !isCenterLine) {
+        return false; // 描かれている
+      }
+    }
+  }
+  return true; // 縦線以外は空白
+}
+
 async function predict() {
   const base64 = canvas.toDataURL("image/png");
 
-  // 初期状態（縦線だけ）の画像と同じなら空白とみなす
-  if (base64 === initialCanvasData) {
+  // キャンバスの内容を取得
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+  let hasDrawing = false;
+  const centerX = canvas.width / 2;
+  const margin = 2; // 縦線の幅より広めに除外（例えば2px）
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      // 縦線部分を無視
+      if (x >= centerX - margin && x <= centerX + margin) continue;
+
+      const index = (y * canvas.width + x) * 4;
+      const alpha = imageData[index + 3];
+
+      if (alpha !== 0) {
+        hasDrawing = true;
+        break;
+      }
+    }
+    if (hasDrawing) break;
+  }
+
+  if (!hasDrawing) {
     document.getElementById("result").textContent = "Result: 何も書かれていません";
     return;
   }
 
-  // 数字が書かれていた場合 → 一旦「読み込みました」と表示
-  document.getElementById("result").textContent = "読み込みました...";
+  // 読み込み中表示
+  document.getElementById("result").textContent = "読み込み中...";
 
-  // APIに送信
-  const res = await fetch("http://localhost:8000/predict", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: base64 })
-  });
+  // プレビュー表示（任意）
+  document.getElementById("preview").src = base64;
 
-  const data = await res.json();
+  try {
+    const res = await fetch("http://localhost:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64 })
+    });
 
-  // 結果を表示
-  document.getElementById("result").textContent = "Result: " + data.result;
+    if (!res.ok) throw new Error("Fetch error");
+
+    const data = await res.json();
+
+    if (data.confidence < 0.8) {
+      document.getElementById("result").textContent = "Result: 自信がありません。もう一度お願いします。";
+    } else {
+      document.getElementById("result").textContent = "Result: " + data.result + "（信頼度: " + Math.round(data.confidence * 100) + "%）";
+    }
+
+  } catch (err) {
+    document.getElementById("result").textContent = "Result: 認識に失敗しました。もう一度入力してください。";
+    console.error(err);
+  }
 }
