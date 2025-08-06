@@ -1,11 +1,16 @@
 from flask import Flask, render_template, request, jsonify
 from tensorflow.keras.models import load_model
 
-# !pip install nbimporter
-import nbimporter
 from double_digits import load_double_data
 
 app = Flask(__name__)
+
+from tensorflow.keras.models import load_model
+from tensorflow.nn import softmax  # または keras.activations.softmax
+
+# モデルを読み込むときに custom_objects を指定
+model = load_model("モデルのパス.keras", custom_objects={"softmax_v2": softmax})
+
 model = load_model('trained_model_v1.h5')  # モデル読み込み(作成したモデルの名前に変更してください)
 
 @app.route('/')
