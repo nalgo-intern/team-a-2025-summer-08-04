@@ -2,14 +2,15 @@ from flask import Flask, render_template, request, jsonify
 from tensorflow.keras.models import load_model
 
 from double_digits import preprocess_image
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)  
 from tensorflow.keras.models import load_model
 from tensorflow.nn import softmax  # または keras.activations.softmax
 
 # モデルを読み込むときに custom_objects を指定
-model = load_model("trained_model_v1.h5", custom_objects={"softmax_v2": softmax})
+model = load_model("trained_model_v2.h5", custom_objects={"softmax_v2": softmax})
 
 @app.route('/')
 def index():
