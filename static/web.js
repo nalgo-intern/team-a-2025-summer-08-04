@@ -1,4 +1,4 @@
-// script.js
+// web.js
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -50,6 +50,80 @@ function clearCanvas() {
   document.getElementById("result").textContent = "Result: ?";
 }
 
+// 追加: 中央線の消去処理（predict()とdownloadProcessedImage()の中で共通）
+function removeCenterLine(ctx) {
+  const centerX = 14;
+  ctx.clearRect(centerX - 1, 0, 3, 28);  // 13〜15ピクセルを白で消去
+}
+
+
+function checkDrawnSide(canvas) {
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  let leftDrawn = false;
+  let rightDrawn = false;
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const index = (y * canvas.width + x) * 4;
+      const alpha = data[index + 3];
+      if (alpha > 0) {
+        if (x < canvas.width / 2) leftDrawn = true;
+        else rightDrawn = true;
+      }
+    }
+  }
+
+  if (leftDrawn && !rightDrawn) return "left";
+  if (!leftDrawn && rightDrawn) return "right";
+  return "both";
+}
+
+function extractHalfAndExpand(canvas, side) {
+  const originalWidth = canvas.width;
+  const originalHeight = canvas.height;
+  const halfWidth = originalWidth / 2;
+
+  // 1. 一時的なキャンバスに元の画像をコピー
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = originalWidth;
+  tempCanvas.height = originalHeight;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.drawImage(canvas, 0, 0);
+
+  // 2. 中央線を確実に削除
+  const centerX = originalWidth / 2;
+  tempCtx.clearRect(centerX - 2, 0, 4, originalHeight); // 線の幅を広めに取り、確実に消去
+
+  // 3. 抽出した半分の画像を保持するキャンバスを作成
+  const halfCanvas = document.createElement("canvas");
+  halfCanvas.width = halfWidth;
+  halfCanvas.height = originalHeight;
+  const halfCtx = halfCanvas.getContext("2d");
+
+  // 4. 指定された側（左または右）から画像を抽出
+  const sx = side === "left" ? 0 : halfWidth;
+  halfCtx.drawImage(tempCanvas, sx, 0, halfWidth, originalHeight, 0, 0, halfWidth, originalHeight);
+
+  // 5. 最終的な28x28のキャンバスを作成
+  const expanded = document.createElement("canvas");
+  expanded.width = 28;
+  expanded.height = 28;
+  const expandCtx = expanded.getContext("2d");
+  expandCtx.imageSmoothingEnabled = false;
+
+  
+  expandCtx.fillStyle = "black";
+  expandCtx.fillRect(0, 0, 28, 28);
+
+  // 6. 抽出した半分の画像を28x28に描画
+  expandCtx.drawImage(halfCanvas, 0, 0, 28, 28);
+
+  return expanded;
+}
+
 
 function isCanvasBlankExceptLine(canvas) {
   const ctx = canvas.getContext('2d');
@@ -76,102 +150,95 @@ function isCanvasBlankExceptLine(canvas) {
   return true; // 縦線以外は空白
 }
 function downloadProcessedImage() {
-  // 1. 表示用 canvas の手書き内容を取得
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const resultElement = document.getElementById("result");
 
-  // 2. 中央線を除いた内容を別キャンバスにコピー
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = canvas.width;
-  tempCanvas.height = canvas.height;
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.putImageData(imageData, 0, 0);
-
-  // 中央線を消す（中央+前後1px）
-  const centerX = Math.floor(canvas.width / 2);
-  tempCtx.clearRect(centerX - 1, 0, 3, canvas.height);
-
-  // 3. 28×28のキャンバスを作成して縮小
-  const downsizeCanvas = document.createElement("canvas");
-  downsizeCanvas.width = 28;
-  downsizeCanvas.height = 28;
-  const downsizeCtx = downsizeCanvas.getContext("2d");
-
-  // 解像度を下げて描画
-  downsizeCtx.drawImage(tempCanvas, 0, 0, 28, 28);
-
-  // 4. 白黒反転
-  const imgData = downsizeCtx.getImageData(0, 0, 28, 28);
-  for (let i = 0; i < imgData.data.length; i += 4) {
-    const r = imgData.data[i];
-    const g = imgData.data[i + 1];
-    const b = imgData.data[i + 2];
-    const avg = (r + g + b) / 3;
-    const inverted = 255 - avg;
-    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = inverted;
-  }
-  downsizeCtx.putImageData(imgData, 0, 0);
-
-  // 5. ダウンロード
-  const link = document.createElement('a');
-  link.download = 'processed_digit.png';
-  link.href = downsizeCanvas.toDataURL('image/png');
-  link.click();
-}
-
-
-async function predict() {
-  // Step 1: 描画Canvasの内容を一時Canvasへコピー
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = canvas.width;
-  tempCanvas.height = canvas.height;
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.drawImage(canvas, 0, 0);
-
-  // Step 2: 中央線の領域をクリア（線を除去）
-  const centerX = canvas.width / 2;
-  tempCtx.clearRect(centerX - 1, 0, 3, canvas.height);
-
-  // Step 3: 28×28に縮小（中間キャンバス）
-  const smallCanvas = document.createElement("canvas");
-  smallCanvas.width = 28;
-  smallCanvas.height = 28;
-  const smallCtx = smallCanvas.getContext("2d");
-  smallCtx.fillStyle = "white";
-  smallCtx.fillRect(0, 0, 28, 28);
-  smallCtx.drawImage(tempCanvas, 0, 0, 28, 28);
-
-  // Step 4: 白黒反転（黒背景・白文字）
-  const imageData = smallCtx.getImageData(0, 0, 28, 28);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    // R, G, Bを255 - 値 にして反転
-    data[i] = 255 - data[i];     // R
-    data[i + 1] = 255 - data[i + 1]; // G
-    data[i + 2] = 255 - data[i + 2]; // B
-    // alpha値（data[i + 3]）はそのまま
-  }
-  smallCtx.putImageData(imageData, 0, 0);
-
-  // 表示用に確認（任意）
-  const finalBase64 = smallCanvas.toDataURL("image/png");
-
-  // Step 5: 空白チェック（反転後の画像と白画像比較）
-  const blankCanvas = document.createElement("canvas");
-  blankCanvas.width = 28;
-  blankCanvas.height = 28;
-  const blankCtx = blankCanvas.getContext("2d");
-  blankCtx.fillStyle = "black"; // 背景を黒にして比較（反転後と同条件）
-  blankCtx.fillRect(0, 0, 28, 28);
-  const blankBase64 = blankCanvas.toDataURL("image/png");
-
-  if (finalBase64 === blankBase64) {
-    document.getElementById("result").textContent = "Result: 何も書かれていません";
+  // 1. 縦線を除いて空白かどうかをチェック
+  if (isCanvasBlankExceptLine(canvas)) {
+    resultElement.textContent = "Result: 何も描かれていません。ダウンロードできませんでした。";
     return;
   }
 
-  document.getElementById("result").textContent = "読み込み中...";
+  // 2. 描画された側を判定
+  const drawnSide = checkDrawnSide(canvas);
 
-  // Step 6: AIに送信
+  let finalImage;
+  
+  if (drawnSide === "left" || drawnSide === "right") {
+    // 片側に描かれている場合、その側を抽出して拡大
+    finalImage = extractHalfAndExpand(canvas, drawnSide);
+  } else {
+    // 両側に描かれているか、どちらかわからない場合は全体を処理
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = 28;
+    tempCanvas.height = 28;
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.drawImage(canvas, 0, 0, 28, 28);
+    finalImage = tempCanvas;
+  }
+
+  // 3. 白黒反転
+  const finalCtx = finalImage.getContext("2d");
+  const imgData = finalCtx.getImageData(0, 0, 28, 28);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const avg = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
+    const inverted = 255 - avg;
+    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = inverted;
+  }
+  finalCtx.putImageData(imgData, 0, 0);
+  removeCenterLine(finalCtx);
+
+  // 4. ダウンロード
+  const link = document.createElement('a');
+  link.download = 'processed_digit.png';
+  link.href = finalImage.toDataURL('image/png');
+  link.click();
+  
+  resultElement.textContent = "Result: 画像をダウンロードしました。";
+}
+
+async function predict() {
+  const resultElement = document.getElementById("result");
+  
+  // 描画された側を判定
+  const drawnSide = checkDrawnSide(canvas);
+
+  // 何も書かれていない場合は処理を中断
+  if (drawnSide === "both" && isCanvasBlankExceptLine(canvas)) {
+    resultElement.textContent = "Result: 何も書かれていません。";
+    return;
+  }
+
+  let finalImage;
+  
+  if (drawnSide === "left" || drawnSide === "right") {
+    // 片側にだけ書かれている場合、その側を抽出して拡大
+    finalImage = extractHalfAndExpand(canvas, drawnSide);
+  } else {
+    // 両側に書かれているか、どちらかわからない場合は全体を処理
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = 28;
+    tempCanvas.height = 28;
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCtx.drawImage(canvas, 0, 0, 28, 28);
+    finalImage = tempCanvas;
+  }
+
+  // 白黒反転
+  const finalCtx = finalImage.getContext("2d");
+  const imgData = finalCtx.getImageData(0, 0, 28, 28);
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const avg = (imgData.data[i] + imgData.data[i + 1] + imgData.data[i + 2]) / 3;
+    const inverted = 255 - avg;
+    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = inverted;
+  }
+  finalCtx.putImageData(imgData, 0, 0);
+  removeCenterLine(finalCtx);
+
+
+  // Base64にして送信
+  const finalBase64 = finalImage.toDataURL("image/png");
+
+  resultElement.textContent = "読み込み中...";
   try {
     const res = await fetch("http://localhost:5000/predict", {
       method: "POST",
@@ -180,17 +247,14 @@ async function predict() {
     });
 
     const data = await res.json();
-
     if (data.confidence < 0.8) {
-      document.getElementById("result").textContent = "Result: 自信がありません。もう一度お願いします。";
+      resultElement.textContent = "Result: 自信がありません。もう一度お願いします。";
     } else {
-      document.getElementById("result").textContent =
-      "Result: " + data.result + "（信頼度: " + (data.confidence * 100).toFixed(2) + "%）";
-
+      resultElement.textContent =
+        "Result: " + data.result + "（信頼度: " + (data.confidence * 100).toFixed(2) + "%）";
     }
-
   } catch (err) {
-    document.getElementById("result").textContent = "Result: 認識に失敗しました。もう一度入力してください。";
+    resultElement.textContent = "Result: 認識に失敗しました。もう一度入力してください。";
     console.error(err);
   }
 }
