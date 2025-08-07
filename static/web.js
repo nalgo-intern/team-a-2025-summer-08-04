@@ -50,6 +50,86 @@ function clearCanvas() {
   document.getElementById("result").textContent = "Result: ?";
 }
 
+function getDrawnSideWithThreshold(canvas) {
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  const centerX = canvas.width / 2;
+
+  let leftPixels = 0;
+  let rightPixels = 0;
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const index = (y * canvas.width + x) * 4;
+      const alpha = data[index + 3];
+      if (alpha > 0) {
+        if (x < centerX) leftPixels++;
+        else rightPixels++;
+      }
+    }
+  }
+
+  const totalPixels = leftPixels + rightPixels;
+  if (totalPixels === 0) return "none";
+
+  const leftRatio = leftPixels / totalPixels;
+  const rightRatio = rightPixels / totalPixels;
+
+  const threshold = 0.9; // ピクセルの90%以上が片側にあればその側と判断
+
+  if (leftRatio > threshold) return "left";
+  if (rightRatio > threshold) return "right";
+
+  return "both";
+}
+
+function extractRegion(canvas, side) {
+  const originalWidth = canvas.width;
+  const originalHeight = canvas.height;
+  const halfWidth = originalWidth / 2;
+
+  // 1. 中央線を削除した一時的なキャンバスを作成
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = originalWidth;
+  tempCanvas.height = originalHeight;
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.drawImage(canvas, 0, 0);
+  const centerX = originalWidth / 2;
+  tempCtx.clearRect(centerX - 2, 0, 4, originalHeight);
+
+  // 2. 抽出する領域を決定
+  const regionCanvas = document.createElement("canvas");
+  if (side === "left") {
+    regionCanvas.width = halfWidth;
+    regionCanvas.height = originalHeight;
+    const regionCtx = regionCanvas.getContext("2d");
+    regionCtx.drawImage(tempCanvas, 0, 0, halfWidth, originalHeight, 0, 0, halfWidth, originalHeight);
+  } else if (side === "right") {
+    regionCanvas.width = halfWidth;
+    regionCanvas.height = originalHeight;
+    const regionCtx = regionCanvas.getContext("2d");
+    regionCtx.drawImage(tempCanvas, halfWidth, 0, halfWidth, originalHeight, 0, 0, halfWidth, originalHeight);
+  } else {
+    regionCanvas.width = originalWidth;
+    regionCanvas.height = originalHeight;
+    const regionCtx = regionCanvas.getContext("2d");
+    regionCtx.drawImage(tempCanvas, 0, 0);
+  }
+  
+  // 3. 最終的な28x28のキャンバスを作成
+  const finalCanvas = document.createElement("canvas");
+  finalCanvas.width = 28;
+  finalCanvas.height = 28;
+  const finalCtx = finalCanvas.getContext("2d");
+  finalCtx.imageSmoothingEnabled = false;
+  
+  // 4. アスペクト比を維持しながら描画
+  finalCtx.drawImage(regionCanvas, 0, 0, 28, 28);
+  
+  return finalCanvas;
+}
+
 // 追加: 中央線の消去処理（predict()とdownloadProcessedImage()の中で共通）
 function removeCenterLine(ctx) {
   const centerX = 14;
@@ -114,7 +194,7 @@ function extractHalfAndExpand(canvas, side) {
   const expandCtx = expanded.getContext("2d");
   expandCtx.imageSmoothingEnabled = false;
 
-  
+
   expandCtx.fillStyle = "black";
   expandCtx.fillRect(0, 0, 28, 28);
 
@@ -199,31 +279,19 @@ function downloadProcessedImage() {
 async function predict() {
   const resultElement = document.getElementById("result");
   
-  // 描画された側を判定
-  const drawnSide = checkDrawnSide(canvas);
+  // 1. 描画領域を厳密に判定
+  const drawnSide = getDrawnSideWithThreshold(canvas);
 
-  // 何も書かれていない場合は処理を中断
-  if (drawnSide === "both" && isCanvasBlankExceptLine(canvas)) {
+  // 2. 何も書かれていない場合は処理を中断
+  if (drawnSide === "none") {
     resultElement.textContent = "Result: 何も書かれていません。";
     return;
   }
 
-  let finalImage;
-  
-  if (drawnSide === "left" || drawnSide === "right") {
-    // 片側にだけ書かれている場合、その側を抽出して拡大
-    finalImage = extractHalfAndExpand(canvas, drawnSide);
-  } else {
-    // 両側に書かれているか、どちらかわからない場合は全体を処理
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = 28;
-    tempCanvas.height = 28;
-    const tempCtx = tempCanvas.getContext("2d");
-    tempCtx.drawImage(canvas, 0, 0, 28, 28);
-    finalImage = tempCanvas;
-  }
+  // 3. 描画領域に応じて画像を抽出・リサイズ
+  const finalImage = extractRegion(canvas, drawnSide);
 
-  // 白黒反転
+  // 4. 白黒反転
   const finalCtx = finalImage.getContext("2d");
   const imgData = finalCtx.getImageData(0, 0, 28, 28);
   for (let i = 0; i < imgData.data.length; i += 4) {
@@ -232,10 +300,8 @@ async function predict() {
     imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = inverted;
   }
   finalCtx.putImageData(imgData, 0, 0);
-  removeCenterLine(finalCtx);
 
-
-  // Base64にして送信
+  // 5. Base64にしてAPIへ送信
   const finalBase64 = finalImage.toDataURL("image/png");
 
   resultElement.textContent = "読み込み中...";
