@@ -213,21 +213,21 @@ function isCanvasBlankExceptLine(canvas) {
 
   for (let y = 0; y < canvas.height; y++) {
     for (let x = 0; x < canvas.width; x++) {
+      // 中央線の領域をスキップ
+      if (x >= centerX - 2 && x <= centerX + 2) {
+        continue;
+      }
+
       const idx = (y * canvas.width + x) * 4;
-      const r = pixels[idx];
-      const g = pixels[idx + 1];
-      const b = pixels[idx + 2];
-      const a = pixels[idx + 3];
+      const a = pixels[idx + 3]; // アルファ値を取得
 
-      const isWhite = r === 255 && g === 255 && b === 255 && a === 255;
-      const isCenterLine = (x === centerX || x === centerX - 1 || x === centerX + 1) && r === 128 && g === 128 && b === 128;
-
-      if (!isWhite && !isCenterLine) {
-        return false; // 描かれている
+      // アルファ値が0より大きいピクセルがあれば、描画されていると判断
+      if (a > 0) {
+        return false;
       }
     }
   }
-  return true; // 縦線以外は空白
+  return true;
 }
 function downloadProcessedImage() {
   const resultElement = document.getElementById("result");
@@ -276,17 +276,19 @@ function downloadProcessedImage() {
   resultElement.textContent = "Result: 画像をダウンロードしました。";
 }
 
+// isCanvasBlankExceptLine関数は既存のものを使用
+
 async function predict() {
   const resultElement = document.getElementById("result");
-  
-  // 1. 描画領域を厳密に判定
-  const drawnSide = getDrawnSideWithThreshold(canvas);
 
-  // 2. 何も書かれていない場合は処理を中断
-  if (drawnSide === "none") {
+  // 1. 縦線を除いて空白かどうかをチェック
+  if (isCanvasBlankExceptLine(canvas)) {
     resultElement.textContent = "Result: 何も書かれていません。";
     return;
   }
+
+  // 2. 描画領域を厳密に判定
+  const drawnSide = getDrawnSideWithThreshold(canvas);
 
   // 3. 描画領域に応じて画像を抽出・リサイズ
   const finalImage = extractRegion(canvas, drawnSide);
